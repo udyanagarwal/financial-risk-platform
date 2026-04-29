@@ -7,6 +7,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from app.models.volatility import predict_volatility, train_model
 from app.models.anomaly import detect_anomalies
 from app.models.sentiment import analyze_sentiment
+from app.models.portfolio import monte_carlo_simulation
 
 app = FastAPI(
     title="Financial Risk Intelligence API",
@@ -152,9 +153,43 @@ def get_sentiment(symbol: str):
         
         result = analyze_sentiment(symbol)
         return result
+
+ 
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))   
+
+@app.get("/portfolio/risk")
+def get_portfolio_risk(
+    symbols: str = "TCS.NS,INFY.NS,HDFCBANK.NS,RELIANCE.NS",
+    weights: str = "0.3,0.3,0.2,0.2",
+    investment: int = 100000,
+    days: int = 30
+):
+    """
+    Run Monte Carlo simulation for a portfolio
+    Example: /portfolio/risk?symbols=TCS.NS,INFY.NS&weights=0.5,0.5&investment=100000&days=30
+    """
+    try:
+        symbol_list = [s.strip().upper() for s in symbols.split(",")]
+        weight_list = [float(w.strip()) for w in weights.split(",")]
+        
+        if len(symbol_list) != len(weight_list):
+            raise HTTPException(
+                status_code=400,
+                detail="Number of symbols and weights must match"
+            )
+        
+        result = monte_carlo_simulation(
+            symbol_list, weight_list, investment, days
+        )
+        return result
     
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))    
+        raise HTTPException(status_code=500, detail=str(e))
+
     return {"stocks": summary, "total": len(summary)}
