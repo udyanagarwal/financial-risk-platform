@@ -1,6 +1,6 @@
 import yfinance as yf
 import pandas as pd
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from dotenv import load_dotenv
 import os
 
@@ -28,11 +28,17 @@ def fetch_and_store():
             stock = yf.download(symbol, period="1y", interval="1d", progress=False)
             
             # Fix for newer yfinance version
+            # Take only first 5 columns to handle any extra columns yfinance returns
+            stock = stock.iloc[:, :5]
             stock.columns = ['open', 'high', 'low', 'close', 'volume']
             stock.reset_index(inplace=True)
             stock.columns = [str(c).lower() for c in stock.columns]
             stock["symbol"] = symbol
             
+            # Delete existing data for this symbol before inserting fresh data
+            with engine.connect() as conn:
+                conn.execute(text(f"DELETE FROM stock_prices WHERE symbol = '{symbol}'"))
+                conn.commit()
             stock.to_sql("stock_prices", engine, if_exists="append", index=False)
             print(f"[OK] Stored data for {symbol}")
         
