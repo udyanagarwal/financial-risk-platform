@@ -6,6 +6,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from app.models.volatility import predict_volatility, train_model
 from app.models.anomaly import detect_anomalies
+from app.models.sentiment import analyze_sentiment
 
 app = FastAPI(
     title="Financial Risk Intelligence API",
@@ -135,5 +136,25 @@ def get_summary():
                 "symbol": symbol,
                 "error": str(e)
             })
+@app.get("/news/sentiment/{symbol}")
+def get_sentiment(symbol: str):
+    """
+    Get news sentiment for a stock based on latest headlines
+    Example: /news/sentiment/TCS.NS
+    """
+    try:
+        symbol = symbol.upper()
+        if symbol not in STOCKS:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Symbol {symbol} not found. Available: {STOCKS}"
+            )
+        
+        result = analyze_sentiment(symbol)
+        return result
     
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))    
     return {"stocks": summary, "total": len(summary)}
