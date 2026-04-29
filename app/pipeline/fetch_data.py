@@ -37,6 +37,18 @@ def fetch_and_store():
             
             # Delete existing data for this symbol before inserting fresh data
             with engine.connect() as conn:
+    # Create table if it doesn't exist
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS stock_prices (
+                        date TIMESTAMP,
+                        open FLOAT,
+                        high FLOAT,
+                        low FLOAT,
+                        close FLOAT,
+                        volume BIGINT,
+                        symbol TEXT
+                    )
+                """))
                 conn.execute(text(f"DELETE FROM stock_prices WHERE symbol = '{symbol}'"))
                 conn.commit()
             stock.to_sql("stock_prices", engine, if_exists="append", index=False)
