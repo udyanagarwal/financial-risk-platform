@@ -12,8 +12,14 @@ DB_NAME = os.getenv("DB_NAME")
 DB_USER = os.getenv("DB_USER")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 
-DB_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-engine = create_engine(DB_URL)
+def get_engine():
+    DB_HOST = os.getenv("DB_HOST")
+    DB_PORT = os.getenv("DB_PORT")
+    DB_NAME = os.getenv("DB_NAME")
+    DB_USER = os.getenv("DB_USER")
+    DB_PASSWORD = os.getenv("DB_PASSWORD")
+    DB_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+    return create_engine(DB_URL)
 
 STOCKS = [
     "RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS", "ICICIBANK.NS",
@@ -21,6 +27,8 @@ STOCKS = [
 ]
 
 def fetch_and_store():
+    engine = get_engine()
+    print(f"Connecting to: {os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}")
     print("Fetching stock data...")
     
     for symbol in STOCKS:
