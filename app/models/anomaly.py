@@ -9,8 +9,9 @@ import pickle
 
 load_dotenv()
 
-DB_URL = f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
-engine = create_engine(DB_URL)
+def get_engine():
+    DB_URL = f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
+    return create_engine(DB_URL)
 
 def load_data(symbol):
     query = f"SELECT * FROM stock_prices WHERE symbol = '{symbol}' ORDER BY date"
