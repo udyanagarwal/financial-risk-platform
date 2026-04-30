@@ -14,8 +14,10 @@ def get_engine():
     return create_engine(DB_URL)
 
 def load_data(symbol):
+    engine = get_engine()
     query = f"SELECT * FROM stock_prices WHERE symbol = '{symbol}' ORDER BY date"
     df = pd.read_sql(query, engine)
+    print(f"Loaded {len(df)} rows for {symbol}")
     return df
 
 def calculate_features(df):
