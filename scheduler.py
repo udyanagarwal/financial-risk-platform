@@ -74,7 +74,7 @@ def daily_pipeline():
     log("STARTING DAILY PIPELINE")
     log("=" * 50)
     fetch_data()
-    time.sleep(30)  # Wait 30 seconds between fetch and retrain
+    time.sleep(60)  # Wait 60 seconds between fetch and retrain
     retrain_models()
     log("=" * 50)
     log("DAILY PIPELINE COMPLETE")
