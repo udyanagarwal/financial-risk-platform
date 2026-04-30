@@ -30,22 +30,27 @@ def fetch_data():
         log(f"Error in fetch_data: {e}")
 
 def retrain_models():
-    """Step 2 - Retrain all ML models with fresh data"""
     log("Starting model retraining...")
-    
-    # Retrain volatility models
     try:
-        result = subprocess.run(
-            [sys.executable, "app/models/volatility.py"],
-            capture_output=True,
-            text=True
-        )
-        if result.returncode == 0:
-            log("Volatility models retrained successfully!")
-        else:
-            log(f"Volatility retraining failed: {result.stderr}")
+        from app.models.volatility import train_model
+        from app.models.anomaly import train_anomaly_model
+        
+        STOCKS = [
+            "RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS", "ICICIBANK.NS",
+            "HINDUNILVR.NS", "SBIN.NS", "BHARTIARTL.NS", "ITC.NS", "KOTAKBANK.NS"
+        ]
+        
+        for stock in STOCKS:
+            try:
+                train_model(stock)
+                train_anomaly_model(stock)
+                log(f"[OK] Retrained models for {stock}")
+            except Exception as e:
+                log(f"[ERROR] Retraining {stock}: {e}")
+        
+        log("All models retrained!")
     except Exception as e:
-        log(f"Error retraining volatility: {e}")
+        log(f"Retraining failed: {e}")
     
     # Retrain anomaly models
     try:
