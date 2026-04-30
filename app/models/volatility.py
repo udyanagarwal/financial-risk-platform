@@ -14,11 +14,9 @@ DB_URL = f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@{os.ge
 engine = create_engine(DB_URL)
 
 def load_data(symbol):
-    """
-    Load stock data from PostgreSQL for a given symbol
-    """
     query = f"SELECT * FROM stock_prices WHERE symbol = '{symbol}' ORDER BY date"
     df = pd.read_sql(query, engine)
+    print(f"Loaded {len(df)} rows for {symbol}")
     return df
 
 def calculate_features(df):
