@@ -51,7 +51,8 @@ def fetch_and_store():
                 """))
                 conn.execute(text(f"DELETE FROM stock_prices WHERE symbol = '{symbol}'"))
                 conn.commit()
-            stock.to_sql("stock_prices", engine, if_exists="append", index=False)
+            with engine.begin() as conn:
+                stock.to_sql("stock_prices", conn, if_exists="append", index=False)
             print(f"[OK] Stored data for {symbol}")
         
         except Exception as e:
