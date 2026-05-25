@@ -10,7 +10,7 @@ import os
 load_dotenv()
 
 # API base URL
-API_URL = "https://financial-risk-platform-production.up.railway.app"
+API_URL = "https://financial-risk-platform-gdg1.onrender.com"
 
 # Database connection
 DB_URL = f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
