@@ -13,7 +13,7 @@ load_dotenv()
 API_URL = "https://financial-risk-platform-gdg1.onrender.com"
 
 # Database connection
-DB_URL = f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
+DB_URL = f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}?sslmode=require"
 engine = create_engine(DB_URL)
 
 # Page config
@@ -129,7 +129,6 @@ with st.spinner("Loading market overview..."):
         overview_df = overview_df.round(2)
         st.dataframe(overview_df, use_container_width=True, height=300)
 
-        # Simple bar chart of average prices
         fig_bar = px.bar(
             overview_df,
             x='symbol',
