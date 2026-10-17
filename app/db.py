@@ -28,11 +28,22 @@ def get_db_url():
             db_url += f"{separator}sslmode=require"
         return db_url
 
-    user = os.getenv("DB_USER", "")
-    password = os.getenv("DB_PASSWORD", "")
-    host = os.getenv("DB_HOST", "")
-    port = os.getenv("DB_PORT", "5432")
-    dbname = os.getenv("DB_NAME", "")
+    def _get_val(key, default=""):
+        val = os.getenv(key)
+        if not val:
+            try:
+                import streamlit as st
+                if key in st.secrets:
+                    return str(st.secrets[key])
+            except Exception:
+                pass
+        return val or default
+
+    user = _get_val("DB_USER")
+    password = _get_val("DB_PASSWORD")
+    host = _get_val("DB_HOST")
+    port = _get_val("DB_PORT", "5432")
+    dbname = _get_val("DB_NAME")
 
     ssl = ""
     if host and "localhost" not in host and "127.0.0.1" not in host:
