@@ -23,8 +23,16 @@ st.set_page_config(
 # Sidebar
 st.sidebar.title("⚙️ Controls")
 
-# API Configuration
-default_api_url = os.getenv("API_URL", "http://127.0.0.1:8000")
+default_api_url = os.getenv("API_URL")
+if not default_api_url:
+    try:
+        if "API_URL" in st.secrets:
+            default_api_url = st.secrets["API_URL"]
+    except Exception:
+        pass
+if not default_api_url:
+    default_api_url = "http://127.0.0.1:8000"
+
 API_URL = st.sidebar.text_input("FastAPI Backend URL", value=default_api_url).rstrip("/")
 
 STOCKS = [

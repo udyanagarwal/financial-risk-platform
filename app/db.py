@@ -11,6 +11,14 @@ def get_db_url():
     Ensures SSL mode is properly enabled for cloud databases.
     """
     db_url = os.getenv("DATABASE_URL")
+    if not db_url:
+        try:
+            import streamlit as st
+            if "DATABASE_URL" in st.secrets:
+                db_url = st.secrets["DATABASE_URL"]
+        except Exception:
+            pass
+
     if db_url:
         # SQLAlchemy requires postgresql:// instead of postgres://
         if db_url.startswith("postgres://"):
