@@ -1,22 +1,26 @@
 import pandas as pd
 import numpy as np
-from sqlalchemy import create_engine
 from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import StandardScaler
 from dotenv import load_dotenv
 import os
 import pickle
+import sys
+
+# Ensure project root is in path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from app.db import get_engine
 
 load_dotenv()
 
-def get_engine():
-    DB_URL = f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
-    return create_engine(DB_URL)
+SAVED_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "saved")
 
 def load_data(symbol):
     engine = get_engine()
     query = f"SELECT * FROM stock_prices WHERE symbol = '{symbol}' ORDER BY date"
     df = pd.read_sql(query, engine)
+    if df.empty:
+        raise ValueError(f"No stock data found in database for {symbol}. Run data fetch pipeline first.")
     print(f"Loaded {len(df)} rows for {symbol}")
     return df
 
@@ -24,6 +28,7 @@ def calculate_features(df):
     """
     Calculate features that help detect anomalies
     """
+    df = df.copy()
     # Daily return
     df['daily_return'] = df['close'].pct_change()
     
@@ -59,12 +64,10 @@ def train_anomaly_model(symbol="TCS.NS"):
     X = df[features]
     
     # Scale features — important for anomaly detection
-    # StandardScaler makes all features have mean=0 and std=1
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
     
     # Isolation Forest
-    # contamination=0.05 means we expect ~5% of data to be anomalies
     model = IsolationForest(
         n_estimators=100,
         contamination=0.05,
@@ -72,49 +75,54 @@ def train_anomaly_model(symbol="TCS.NS"):
     )
     model.fit(X_scaled)
     
-    # Detect anomalies on training data
-    # -1 = anomaly, 1 = normal
     df['anomaly'] = model.predict(X_scaled)
     df['anomaly_score'] = model.score_samples(X_scaled)
     
     anomalies = df[df['anomaly'] == -1]
     print(f"[OK] Found {len(anomalies)} anomalies out of {len(df)} trading days")
-    print(f"Anomaly dates for {symbol}:")
-    print(anomalies[['date', 'close', 'daily_return', 'volume_ratio']].to_string())
     
     # Save model and scaler
-    os.makedirs("app/models/saved", exist_ok=True)
-    with open(f"app/models/saved/{symbol.replace('.', '_')}_anomaly.pkl", "wb") as f:
+    os.makedirs(SAVED_DIR, exist_ok=True)
+    model_path = os.path.join(SAVED_DIR, f"{symbol.replace('.', '_')}_anomaly.pkl")
+    with open(model_path, "wb") as f:
         pickle.dump({'model': model, 'scaler': scaler}, f)
     
-    print(f"[OK] Anomaly model saved!")
+    print(f"[OK] Anomaly model saved to {model_path}!")
     return model, scaler, anomalies
 
-def detect_anomalies(symbol):
+def detect_anomalies(symbol, model=None, scaler=None, df=None):
     """
     Detect if today's trading is anomalous
     """
-    model_path = f"app/models/saved/{symbol.replace('.', '_')}_anomaly.pkl"
-    with open(model_path, "rb") as f:
-        saved = pickle.load(f)
+    if model is None or scaler is None:
+        model_path = os.path.join(SAVED_DIR, f"{symbol.replace('.', '_')}_anomaly.pkl")
+        if not os.path.exists(model_path):
+            print(f"Anomaly model not found at {model_path}, training new model...")
+            model, scaler, _ = train_anomaly_model(symbol)
+        else:
+            with open(model_path, "rb") as f:
+                saved = pickle.load(f)
+            model = saved['model']
+            scaler = saved['scaler']
     
-    model = saved['model']
-    scaler = saved['scaler']
-    
-    df = load_data(symbol)
+    if df is None or df.empty:
+        df = load_data(symbol)
+    else:
+        df = df.copy()
+        
     df = calculate_features(df)
     
     features = ['daily_return', 'volume_change', 'price_range',
                 'volume_ratio', 'volatility_20']
     
     # Check only the latest trading day
-    latest = df[features].iloc[-1].values.reshape(1, -1)
+    latest = df[features].iloc[[-1]]
     latest_scaled = scaler.transform(latest)
     
     prediction = model.predict(latest_scaled)[0]
     score = model.score_samples(latest_scaled)[0]
     
-    is_anomaly = prediction == -1
+    is_anomaly = bool(prediction == -1)
     
     return {
         "symbol": symbol,

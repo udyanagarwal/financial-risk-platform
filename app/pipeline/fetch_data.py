@@ -1,8 +1,13 @@
 import yfinance as yf
 import pandas as pd
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
 from dotenv import load_dotenv
 import os
+import sys
+
+# Ensure project root is in path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from app.db import get_engine
 
 load_dotenv()
 
@@ -11,22 +16,24 @@ STOCKS = [
     "HINDUNILVR.NS", "SBIN.NS", "BHARTIARTL.NS", "ITC.NS", "KOTAKBANK.NS"
 ]
 
-def get_engine():
-    DB_URL = f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}?sslmode=require"
-    return create_engine(DB_URL)
-
 def fetch_and_store():
     engine = get_engine()
-    print(f"Connecting to: {os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}")
-    print("Fetching stock data...")
+    print("Connecting to database and fetching stock data from Yahoo Finance...")
     
     for symbol in STOCKS:
         try:
             stock = yf.download(symbol, period="1y", interval="1d", progress=False)
-            stock = stock.iloc[:, :5]
-            stock.columns = ['open', 'high', 'low', 'close', 'volume']
+            if stock.empty:
+                print(f"[WARN] No data fetched for {symbol}")
+                continue
+            
+            # Extract standard OHLCV columns (handle possible MultiIndex from yfinance)
+            if isinstance(stock.columns, pd.MultiIndex):
+                stock = stock.droplevel(1, axis=1) if stock.columns.nlevels > 1 else stock
+                
+            stock = stock[['Open', 'High', 'Low', 'Close', 'Volume']].copy()
             stock.reset_index(inplace=True)
-            stock.columns = [str(c).lower() for c in stock.columns]
+            stock.columns = ['date', 'open', 'high', 'low', 'close', 'volume']
             stock["symbol"] = symbol
             
             with engine.begin() as conn:

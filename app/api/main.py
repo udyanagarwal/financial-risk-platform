@@ -1,9 +1,16 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+import pandas as pd
 
+
+
+# Ensure project root is in path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+from app.db import get_engine
 from app.models.volatility import predict_volatility, train_model
 from app.models.anomaly import detect_anomalies
 from app.models.sentiment import analyze_sentiment
@@ -11,14 +18,15 @@ from app.models.portfolio import monte_carlo_simulation
 
 app = FastAPI(
     title="Financial Risk Intelligence API",
-    description="Real-time stock volatility prediction and anomaly detection",
+    description="Real-time stock volatility prediction, anomaly detection, sentiment analysis, and Monte Carlo portfolio risk",
     version="1.0.0"
 )
 
-# Allow all origins for development
+# Allow all origins for development and cross-origin dashboard access
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"]
 )
@@ -28,15 +36,21 @@ STOCKS = [
     "HINDUNILVR.NS", "SBIN.NS", "BHARTIARTL.NS", "ITC.NS", "KOTAKBANK.NS"
 ]
 
+@app.get("/doc", include_in_schema=False)
+def doc_redirect():
+    return RedirectResponse(url="/docs")
+
 @app.get("/")
 def root():
     return {
-        "message": "Financial Risk Intelligence API",
+        "message": "Financial Risk Intelligence API is online",
         "version": "1.0.0",
         "endpoints": [
             "/predict/volatility/{symbol}",
             "/detect/anomaly/{symbol}",
-            "/stocks/summary"
+            "/stocks/summary",
+            "/news/sentiment/{symbol}",
+            "/portfolio/risk"
         ]
     }
 
@@ -54,7 +68,7 @@ def get_volatility(symbol: str):
                 detail=f"Symbol {symbol} not found. Available: {STOCKS}"
             )
         
-        prediction = predict_volatility(symbol)
+        prediction = float(predict_volatility(symbol))
         
         # Interpret the volatility level
         if prediction < 0.01:
@@ -68,7 +82,7 @@ def get_volatility(symbol: str):
             "symbol": symbol,
             "predicted_volatility": prediction,
             "risk_level": risk_level,
-            "interpretation": f"{symbol} is expected to move ~{round(prediction*100, 2)}% tomorrow"
+            "interpretation": f"{symbol} is expected to move ~{round(prediction * 100, 2)}% tomorrow"
         }
     
     except HTTPException:
@@ -109,13 +123,22 @@ def get_anomaly(symbol: str):
 def get_summary():
     """
     Get volatility and anomaly status for all tracked stocks
+    Optimized to fetch all price data in a single batch query
     """
     summary = []
     
+    try:
+        engine = get_engine()
+        query = "SELECT * FROM stock_prices ORDER BY date"
+        all_df = pd.read_sql(query, engine)
+    except Exception:
+        all_df = pd.DataFrame()
+    
     for symbol in STOCKS:
         try:
-            volatility = predict_volatility(symbol)
-            anomaly = detect_anomalies(symbol)
+            stock_df = all_df[all_df['symbol'] == symbol] if not all_df.empty else None
+            volatility = float(predict_volatility(symbol, df=stock_df))
+            anomaly = detect_anomalies(symbol, df=stock_df)
             
             if volatility < 0.01:
                 risk_level = "LOW"
@@ -129,7 +152,7 @@ def get_summary():
                 "predicted_volatility": volatility,
                 "risk_level": risk_level,
                 "is_anomaly": bool(anomaly["is_anomaly"]),
-                "anomaly_score": anomaly["anomaly_score"]
+                "anomaly_score": float(anomaly["anomaly_score"])
             })
         
         except Exception as e:
@@ -137,6 +160,9 @@ def get_summary():
                 "symbol": symbol,
                 "error": str(e)
             })
+            
+    return {"stocks": summary, "total": len(summary)}
+
 @app.get("/news/sentiment/{symbol}")
 def get_sentiment(symbol: str):
     """
@@ -154,27 +180,26 @@ def get_sentiment(symbol: str):
         result = analyze_sentiment(symbol)
         return result
 
- 
-
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))   
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/portfolio/risk")
 def get_portfolio_risk(
     symbols: str = "TCS.NS,INFY.NS,HDFCBANK.NS,RELIANCE.NS",
     weights: str = "0.3,0.3,0.2,0.2",
     investment: int = 100000,
-    days: int = 30
+    days: int = 30,
+    simulations: int = 10000
 ):
     """
     Run Monte Carlo simulation for a portfolio
-    Example: /portfolio/risk?symbols=TCS.NS,INFY.NS&weights=0.5,0.5&investment=100000&days=30
+    Example: /portfolio/risk?symbols=TCS.NS,INFY.NS&weights=0.5,0.5&investment=100000&days=30&simulations=10000
     """
     try:
-        symbol_list = [s.strip().upper() for s in symbols.split(",")]
-        weight_list = [float(w.strip()) for w in weights.split(",")]
+        symbol_list = [s.strip().upper() for s in symbols.split(",") if s.strip()]
+        weight_list = [float(w.strip()) for w in weights.split(",") if w.strip()]
         
         if len(symbol_list) != len(weight_list):
             raise HTTPException(
@@ -183,7 +208,7 @@ def get_portfolio_risk(
             )
         
         result = monte_carlo_simulation(
-            symbol_list, weight_list, investment, days
+            symbol_list, weight_list, investment, days, simulations
         )
         return result
     
@@ -191,5 +216,3 @@ def get_portfolio_risk(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-    return {"stocks": summary, "total": len(summary)}
